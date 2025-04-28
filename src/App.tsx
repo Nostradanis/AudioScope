@@ -1,1 +1,0 @@
-export default function App(){return <h1>SoundScope PWA lista ✔</h1>;}

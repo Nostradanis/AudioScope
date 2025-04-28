@@ -1,8 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-
 export default defineConfig({
   plugins: [react()],
-  base: '/AudioScope/',  
+  base: '/AudioScope/',
   build: { outDir: 'dist', emptyOutDir: true }
 });

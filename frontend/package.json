@@ -1,5 +1,5 @@
 {
-  "name": "soundscope-frontend",
+  "name": "audioscope-frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,11 +8,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-  "wavesurfer.js": "^7.9.4",
-  "@vitejs/plugin-react": "^4.2.1",
-  "react": "^18.3.0",
-  "react-dom": "^18.3.0",
-  "@tensorflow/tfjs": "^4.16.0"
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "@tensorflow/tfjs": "^4.16.0",
+    "wavesurfer.js": "^7.9.4"
   },
   "devDependencies": {
     "vite": "^5.1.0",
