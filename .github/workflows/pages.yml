@@ -1,0 +1,33 @@
+name: Deploy PWA
+
+on:
+  push:
+    branches: [main]       # o la rama que uses
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Clonar el repo
+      - uses: actions/checkout@v4
+
+      # 2. Instalar Node
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      # 3. Instalar dependencias y compilar la PWA
+      - name: Install & build
+        run: |
+          cd frontend          # carpeta donde subiste la PWA
+          npm install
+          npm run build        # genera frontend/dist
+
+      # 4. Publicar la carpeta dist en GitHub Pages
+      - name: Deploy to Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          publish_dir: frontend/dist   # OJO: misma ruta que arriba
+          github_token: ${{ secrets.GITHUB_TOKEN }}
