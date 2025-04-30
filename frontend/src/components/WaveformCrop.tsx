@@ -1,7 +1,6 @@
-// frontend/src/components/WaveformCrop.tsx
 import { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';          // 👈 nuevo import
+import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js'; // ✔️ plugin propio del paquete
 import { Sample } from '../App';
 
 interface Props {
@@ -10,90 +9,88 @@ interface Props {
 }
 
 export default function WaveformCrop({ samples, onUpdate }: Props) {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const wsRef = useRef<WaveSurfer | null>(null);
-  const [region, setRegion] = useState<{ start: number; end: number } | null>(
-    null
-  );
+  const wrap = useRef<HTMLDivElement>(null);
+  const ws   = useRef<WaveSurfer | null>(null);
+  const [region, setRegion] = useState<{ start: number; end: number } | null>(null);
 
-  /* 1 – Cargar el último audio cada vez que se añade una muestra */
+  /* Cargar la forma de onda del último audio */
   useEffect(() => {
     if (!samples.length) return;
 
-    const latest = samples[samples.length - 1];
-    latest.blob.arrayBuffer().then(buf => {
-      wsRef.current?.destroy();
+    const last = samples[samples.length - 1];
+    last.blob.arrayBuffer().then(buf => {
+      ws.current?.destroy();
 
-      wsRef.current = WaveSurfer.create({
-        container: wrapRef.current!,
-        height: 100,
+      ws.current = WaveSurfer.create({
+        container: wrap.current!,
         waveColor: '#60a5fa',
         progressColor: '#1d4ed8',
+        height: 100,
         plugins: [
           RegionsPlugin.create({
-            dragSelection: true,   // permite arrastrar con ratón o dedo
+            dragSelection: { slop: 5 },      // ← permite arrastrar para seleccionar
           }),
         ],
       });
 
-      /* Mantener una sola región a la vez */
-      wsRef.current.on('region-updated', r =>
-        setRegion({ start: r.start, end: r.end })
-      );
-      wsRef.current.on('region-created', r => {
+      /* Mantener una sola región visible */
+      ws.current.on('region-created', r => {
         setRegion({ start: r.start, end: r.end });
-        Object.values(wsRef.current!.regions.list)
+        Object.values(ws.current!.regions.list)
           .filter(reg => reg.id !== r.id)
           .forEach(reg => reg.remove());
       });
 
-      wsRef.current.loadBlob(new Blob([buf]));
+      ws.current.loadBlob(new Blob([buf]));
     });
   }, [samples]);
 
-  /* 2 – Botón tijeras */
+  /* Recortar cuando se pulsa ✂️ */
   async function crop() {
-    if (!region || !wsRef.current) return;
+    if (!ws.current || !region) return;
 
     const { start, end } = region;
-    const buffer = wsRef.current.backend.buffer;
-    const sampleRate = buffer.sampleRate;
+    const buf        = ws.current.backend.buffer;
+    const sr         = buf.sampleRate;
+    const first      = Math.floor(start * sr);
+    const lastSample = Math.floor(end   * sr);
+    const slice      = buf.getChannelData(0).slice(first, lastSample);
 
-    // Recortar el canal 0 — mono
-    const first = Math.floor(start * sampleRate);
-    const last = Math.floor(end * sampleRate);
-    const slice = buffer.getChannelData(0).slice(first, last);
-
-    // Crear un nuevo AudioBuffer con ese fragmento
-    const ctx = new OfflineAudioContext(1, slice.length, sampleRate);
-    const newBuf = ctx.createBuffer(1, slice.length, sampleRate);
+    // Crear un nuevo AudioBuffer con el fragmento
+    const ctx      = new OfflineAudioContext(1, slice.length, sr);
+    const newBuf   = ctx.createBuffer(1, slice.length, sr);
     newBuf.copyToChannel(slice, 0);
     const rendered = await ctx.startRendering();
 
-    // Codificar a WAV (PCM) — suficiente para la PWA
-    const wav = encodeWav(rendered);
-    const newBlob = new Blob([wav], { type: 'audio/wav' });
+    // Pasar a WAV (PCM 16-bit)
+    const wavArray = encodeWav(rendered);
+    const newBlob  = new Blob([wavArray], { type: 'audio/wav' });
 
-    // Sustituir la muestra en el array
+    // Reemplazar la muestra en el estado
     const lastId = samples[samples.length - 1].id;
-    onUpdate(
-      samples.map(s => (s.id === lastId ? { ...s, blob: newBlob } : s))
-    );
+    onUpdate(samples.map(s => (s.id === lastId ? { ...s, blob: newBlob } : s)));
 
-    // Limpiar región y forma de onda
+    // Limpiar selección y refrescar onda
     setRegion(null);
-    wsRef.current.regions.clear();
-    wsRef.current.loadBlob(newBlob);
+    ws.current.regions.clear();
+    ws.current.loadBlob(newBlob);
   }
 
   return (
     <div style={{ position: 'relative' }}>
-      <div ref={wrapRef} />
+      <div ref={wrap} />
+
+      {/* botón tijeras */}
       <button
-        style={{ position: 'absolute', top: 8, right: 8 }}
-        disabled={!region}
         onClick={crop}
+        disabled={!region}
         title="Recortar selección"
+        style={{
+          position: 'absolute',
+          top: 8,
+          right: 8,
+          zIndex: 10,           // ✔️ siempre por encima de la onda
+        }}
       >
         ✂️
       </button>
@@ -101,48 +98,20 @@ export default function WaveformCrop({ samples, onUpdate }: Props) {
   );
 }
 
-/* ——— util: codificar AudioBuffer a WAV PCM 16-bit ——— */
+/* Utilidad: convertir AudioBuffer → WAV PCM 16-bit LE */
 function encodeWav(buffer: AudioBuffer): ArrayBuffer {
-  const numChannels = 1;
-  const sampleRate = buffer.sampleRate;
+  const numCh   = 1;
+  const sr      = buffer.sampleRate;
   const samples = buffer.getChannelData(0);
-  const dataview = new DataView(new ArrayBuffer(44 + samples.length * 2));
-  let offset = 0;
+  const out     = new DataView(new ArrayBuffer(44 + samples.length * 2));
+  let   o       = 0;
+  const w16 = (v: number) => { out.setInt16(o, v, true);  o += 2; };
+  const u32 = (v: number) => { out.setUint32(o, v, true); o += 4; };
+  const str = (s: string) => { for (let i = 0; i < s.length; i++) out.setUint8(o++, s.charCodeAt(i)); };
 
-  function writeString(s: string) {
-    for (let i = 0; i < s.length; i++) dataview.setUint8(offset++, s.charCodeAt(i));
-  }
-  function writeUint32(v: number) {
-    dataview.setUint32(offset, v, true);
-    offset += 4;
-  }
-  function writeUint16(v: number) {
-    dataview.setUint16(offset, v, true);
-    offset += 2;
-  }
-
-  // RIFF header
-  writeString('RIFF');
-  writeUint32(36 + samples.length * 2);
-  writeString('WAVE');
-  // fmt sub-chunk
-  writeString('fmt ');
-  writeUint32(16);
-  writeUint16(1);                // PCM
-  writeUint16(numChannels);
-  writeUint32(sampleRate);
-  writeUint32(sampleRate * numChannels * 2);
-  writeUint16(numChannels * 2);  // block align
-  writeUint16(16);               // bits
-  // data sub-chunk
-  writeString('data');
-  writeUint32(samples.length * 2);
-
-  // PCM 16-bit LE
-  for (let i = 0; i < samples.length; i++) {
-    let s = Math.max(-1, Math.min(1, samples[i]));
-    dataview.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-    offset += 2;
-  }
-  return dataview.buffer;
+  str('RIFF'); u32(36 + samples.length * 2); str('WAVE');
+  str('fmt '); u32(16); w16(1); w16(numCh); u32(sr); u32(sr * numCh * 2); w16(numCh * 2); w16(16);
+  str('data'); u32(samples.length * 2);
+  for (let i = 0; i < samples.length; i++) w16(Math.max(-32768, Math.min(32767, samples[i] * 32768)));
+  return out.buffer;
 }
