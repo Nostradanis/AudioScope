@@ -1,3 +1,4 @@
+// frontend/src/components/Trainer.tsx
 import { useState } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import { extractFeatures } from '../utils/audio';
@@ -12,16 +13,18 @@ export default function Trainer({ samples, onTrained }: Props) {
   const [status, setStatus] = useState('esperando…');
 
   async function train() {
-    const labelled = samples.filter(s => s.label);     // solo las que tienen etiqueta
-
-    // 1️⃣ Comprobación mínima
+    const labelled = samples.filter(s => s.label);
     if (labelled.length < 4) {
       setStatus('❗ Se necesitan al menos 4 muestras etiquetadas');
       return;
     }
 
-    // ============ ENTRENAMIENTO ============ //
     const labels = [...new Set(labelled.map(s => s.label))];
+    if (labels.length < 2) {
+      setStatus('❗ Necesitas al menos 2 etiquetas distintas');
+      return;
+    }
+
     const xs: number[][] = [];
     const ys: number[] = [];
 
@@ -41,19 +44,13 @@ export default function Trainer({ samples, onTrained }: Props) {
     setStatus('⏳ Entrenando…');
     await model.fit(xT, yT, { epochs: 30 });
     (model as any).labels = labels;
-
     setStatus('✅ Modelo listo');
     onTrained(model);
   }
 
   return (
     <div style={{ marginTop: 8 }}>
-      <button
-        onClick={train}
-        disabled={samples.filter(s => s.label).length < 1}   // se habilita con ≥1 muestra
-      >
-        Entrenar
-      </button>
+      <button onClick={train}>Entrenar</button>
       <span style={{ marginLeft: 8 }}>{status}</span>
     </div>
   );
