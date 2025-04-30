@@ -1,7 +1,7 @@
 // frontend/src/components/WaveformCrop.tsx
 import { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import RegionsPlugin from '@wavesurfer/regions';          // 👈 nuevo import
+import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';          // 👈 nuevo import
 import { Sample } from '../App';
 
 interface Props {
