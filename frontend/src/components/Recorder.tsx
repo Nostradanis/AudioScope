@@ -1,3 +1,4 @@
+// frontend/src/components/Recorder.tsx
 import { useRef, useState } from 'react';
 
 interface Props {
@@ -8,9 +9,6 @@ export default function Recorder({ onRecorded }: Props) {
   const recRef = useRef<MediaRecorder | null>(null);
   const [recording, setRecording] = useState(false);
 
-  /** URL del último audio grabado (para el botón ▶️) */
-  const [lastURL, setLastURL] = useState<string | null>(null);
-
   async function start() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const mr = new MediaRecorder(stream);
@@ -20,11 +18,7 @@ export default function Recorder({ onRecorded }: Props) {
     mr.ondataavailable = e => chunks.push(e.data);
 
     mr.onstop = () => {
-      const blob = new Blob(chunks, { type: 'audio/webm' });
-      onRecorded(blob);
-
-      /* crea URL reproducible */
-      setLastURL(URL.createObjectURL(blob));
+      onRecorded(new Blob(chunks, { type: 'audio/webm' }));
       chunks.length = 0;
     };
 
@@ -38,17 +32,8 @@ export default function Recorder({ onRecorded }: Props) {
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <button onClick={recording ? stop : start}>
-        {recording ? 'Detener' : 'Grabar'}
-      </button>
-
-      {/* Botón ▶️ para oír lo recién grabado */}
-      {lastURL && (
-        <button onClick={() => new Audio(lastURL).play()}>
-          ▶︎ Reproducir última
-        </button>
-      )}
-    </div>
+    <button onClick={recording ? stop : start}>
+      {recording ? 'Detener' : 'Grabar'}
+    </button>
   );
 }
