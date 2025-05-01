@@ -1,10 +1,9 @@
+// frontend/src/components/ModelIO.tsx
 import { useRef } from 'react';
 import * as tf from '@tensorflow/tfjs';
 
 interface Props {
-  /** modelo ya entrenado (o null) */
   model: tf.LayersModel | null;
-  /** callback para devolver el modelo cargado */
   onLoaded: (m: tf.LayersModel) => void;
 }
 
@@ -17,18 +16,20 @@ export default function ModelIO({ model, onLoaded }: Props) {
     await model.save('downloads://soundscope-model');
   }
 
-  /* ---------- CARGAR ---------- */
-  function triggerOpen() {
+  /* ---------- ABRIR DIALOGO ---------- */
+  function openPicker() {
     fileInput.current?.click();
   }
 
-  async function load(e: React.ChangeEvent<HTMLInputElement>) {
-    const jsonFile = e.target.files?.[0];
+  /* ---------- CARGAR ---------- */
+  async function load(ev: React.ChangeEvent<HTMLInputElement>) {
+    const jsonFile = ev.target.files?.[0];
     if (!jsonFile) return;
 
-    // buscar el .bin con mismo prefijo
     const base = jsonFile.name.replace('.json', '');
-    const binFile = Array.from(e.target.files!).find(f => f.name.startsWith(base) && f.name.endsWith('.bin'));
+    const binFile = Array.from(ev.target.files!).find(
+      f => f.name.startsWith(base) && f.name.endsWith('.bin')
+    );
 
     if (!binFile) {
       alert('Selecciona también el archivo .bin de pesos');
@@ -36,22 +37,20 @@ export default function ModelIO({ model, onLoaded }: Props) {
     }
 
     const loaded = await tf.loadLayersModel(tf.io.browserFiles([jsonFile, binFile]));
+
+    // restaurar etiquetas guardadas en metadata
+    const meta = (loaded as any).userDefinedMetadata;
+    if (meta?.labels) (loaded as any).labels = meta.labels;
+
     onLoaded(loaded);
-    e.target.value = ''; // reset
+    ev.target.value = '';
   }
 
   return (
     <div style={{ marginTop: 8 }}>
       <button onClick={save} disabled={!model}>💾 Guardar modelo</button>{' '}
-      <button onClick={triggerOpen}>📂 Cargar modelo</button>
-      <input
-        type="file"
-        accept=".json,.bin"
-        multiple
-        hidden
-        ref={fileInput}
-        onChange={load}
-      />
+      <button onClick={openPicker}>📂 Cargar modelo</button>
+      <input hidden multiple ref={fileInput} type="file" accept=".json,.bin" onChange={load} />
     </div>
   );
 }
