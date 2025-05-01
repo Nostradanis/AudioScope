@@ -6,10 +6,12 @@ import { Sample } from '../App';
 
 interface Props {
   samples: Sample[];
+  /** Si ya hay un modelo cargado queremos seguir entrenándolo */
+  existingModel?: tf.LayersModel | null;
   onTrained: (m: tf.LayersModel) => void;
 }
 
-export default function Trainer({ samples, onTrained }: Props) {
+export default function Trainer({ samples, existingModel, onTrained }: Props) {
   const [status, setStatus] = useState('esperando…');
 
   async function train() {
@@ -27,7 +29,6 @@ export default function Trainer({ samples, onTrained }: Props) {
 
     const xs: number[][] = [];
     const ys: number[] = [];
-
     for (const s of labelled) {
       xs.push(await extractFeatures(s.blob));
       ys.push(labels.indexOf(s.label));
@@ -36,14 +37,21 @@ export default function Trainer({ samples, onTrained }: Props) {
     const xT = tf.tensor2d(xs);
     const yT = tf.oneHot(tf.tensor1d(ys, 'int32'), labels.length);
 
-    const model = tf.sequential();
-    model.add(tf.layers.dense({ inputShape: [xs[0].length], units: 64, activation: 'relu' }));
-    model.add(tf.layers.dense({ units: labels.length, activation: 'softmax' }));
-    model.compile({ optimizer: 'adam', loss: 'categoricalCrossentropy', metrics: ['accuracy'] });
+    const model =
+      existingModel && (existingModel as any).labels
+        ? existingModel
+        : (() => {
+            const m = tf.sequential();
+            m.add(tf.layers.dense({ inputShape: [xs[0].length], units: 64, activation: 'relu' }));
+            m.add(tf.layers.dense({ units: labels.length, activation: 'softmax' }));
+            m.compile({ optimizer: 'adam', loss: 'categoricalCrossentropy', metrics: ['accuracy'] });
+            return m;
+          })();
 
     setStatus('⏳ Entrenando…');
-    await model.fit(xT, yT, { epochs: 30 });
+    await model.fit(xT, yT, { epochs: 20 });
     (model as any).labels = labels;
+    (model as any).userDefinedMetadata = { labels };   // para guardar
     setStatus('✅ Modelo listo');
     onTrained(model);
   }
