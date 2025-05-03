@@ -1,17 +1,32 @@
-<!-- frontend/index.html -->
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SoundScope</title>
+
+    <!-- Tailwind v3 CDN + Inter font -->
     <link
-      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      href="https://cdn.jsdelivr.net/npm/@tailwindcss/typography@0.5.10/dist/typography.min.css"
       rel="stylesheet"
     />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    />
+    <style>
+      :root {
+        font-family: Inter, system-ui, sans-serif;
+      }
+      /* glass‑card */
+      .glass {
+        @apply bg-white/60 dark:bg-slate-800/60 backdrop-blur-lg shadow-lg rounded-xl;
+      }
+    </style>
   </head>
-  <body class="bg-gray-50 text-gray-900">
-    <div id="root" class="min-h-screen flex items-center justify-center p-4"></div>
+  <body class="bg-gradient-to-br from-slate-50 to-indigo-50 dark:from-slate-900 dark:to-slate-800 text-slate-900 dark:text-slate-100">
+    <div id="root" class="min-h-screen flex flex-col"></div>
     <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>
