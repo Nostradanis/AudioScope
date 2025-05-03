@@ -1,4 +1,3 @@
-// frontend/src/components/Recorder.tsx
 import { useRef, useState } from 'react';
 
 interface Props {
@@ -10,6 +9,7 @@ export default function Recorder({ onRecorded }: Props) {
   const fileIn = useRef<HTMLInputElement>(null);
   const [rec, setRec] = useState(false);
 
+  /* Grabar */
   async function start() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const mr = new MediaRecorder(stream);
@@ -25,6 +25,7 @@ export default function Recorder({ onRecorded }: Props) {
     setRec(false);
   };
 
+  /* Subir */
   const upload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) onRecorded(f);
@@ -32,21 +33,21 @@ export default function Recorder({ onRecorded }: Props) {
   };
 
   return (
-    <div className="flex gap-4">
+    <div className="flex flex-wrap gap-3">
       <button
-        className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-50"
+        className="px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white shadow disabled:opacity-50"
         onClick={rec ? stop : start}
       >
         {rec ? 'Detener' : 'Grabar'}
       </button>
 
       <button
-        className="px-4 py-2 rounded bg-blue-600 text-white"
+        className="px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white shadow"
         onClick={() => fileIn.current?.click()}
       >
         Subir
       </button>
-      <input type="file" accept="audio/*" hidden ref={fileIn} onChange={upload} />
+      <input hidden ref={fileIn} type="file" accept="audio/*" onChange={upload} />
     </div>
   );
 }
