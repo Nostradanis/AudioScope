@@ -1,65 +1,94 @@
+// frontend/src/components/ModelIO.tsx
 import { useRef } from 'react';
-import * as tf from '@tensorflow/tfjs';
+import * as tf    from '@tensorflow/tfjs';
+import JSZip      from 'jszip';
+import { saveAs } from 'file-saver';
+
+import { Sample } from '../App';
 
 interface Props {
-  model: tf.LayersModel | null;
+  model:   tf.LayersModel | null;
+  samples: Sample[];
+  setSamples: (s: Sample[]) => void;
   onLoaded: (m: tf.LayersModel) => void;
 }
 
-export default function ModelIO({ model, onLoaded }: Props) {
+export default function ModelIO({ model, samples, setSamples, onLoaded }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
 
-  /* ---------- GUARDAR ---------- */
-  async function save() {
+  /* ---------- GUARDAR TODO EN ZIP ---------- */
+  async function saveAll() {
     if (!model) return;
 
-    /* preguntar al usuario */
-    const name = prompt('Nombre para el modelo:', 'soundscope');
-    if (!name) return;                         // cancelar → no descarga
+    const name = prompt('Nombre del fichero:', 'soundscope-project');
+    if (!name) return;
 
-    // quitar espacios y caracteres raros
-    const safe = name.trim().replace(/[^a-z0-9_\-]/gi, '_');
+    // 1.  exportar modelo a buffers
+    const saveRes = await model.save(tf.io.withSaveHandler(async files => files));
+    const zip = new JSZip();
 
-    await model.save(`downloads://${safe}`);
-  }
+    zip.file('model.json', saveRes.modelArtifactsInfo.modelTopology as string);
+    zip.file('model.weights.bin', saveRes.weightData as ArrayBuffer);
 
-  /* ---------- CARGAR ---------- */
-  function openPicker() {
-    fileInput.current?.click();
-  }
-
-  async function load(e: React.ChangeEvent<HTMLInputElement>) {
-    const json = e.target.files?.[0];
-    if (!json) return;
-
-    const base = json.name.replace('.json', '');
-    const bin  = Array.from(e.target.files!).find(
-      f => f.name.startsWith(base) && f.name.endsWith('.bin')
+    // 2.  añadir blobs de muestras
+    const meta = samples.map(s => ({ id: s.id, label: s.label, type: s.blob.type }));
+    await Promise.all(
+      samples.map(async s => {
+        const buf = await s.blob.arrayBuffer();
+        zip.file(`samples/${s.id}`, buf);
+      })
     );
-    if (!bin) { alert('Selecciona también el archivo .bin'); return; }
+    zip.file('meta.json', JSON.stringify(meta));
 
-    const loaded = await tf.loadLayersModel(tf.io.browserFiles([json, bin]));
+    // 3. generar ZIP
+    const content = await zip.generateAsync({ type: 'blob' });
+    saveAs(content, `${name}.zip`);
+  }
 
-    // restaurar etiquetas si existen en metadata
-    const meta = (loaded as any).userDefinedMetadata;
-    if (meta?.labels) (loaded as any).labels = meta.labels;
+  /* ---------- ABRIR SELECCIONADOR ---------- */
+  const openPicker = () => fileInput.current?.click();
 
-    onLoaded(loaded);
+  /* ---------- CARGAR ZIP ---------- */
+  async function loadAll(e: React.ChangeEvent<HTMLInputElement>) {
+    const zipFile = e.target.files?.[0];
+    if (!zipFile) return;
+
+    const zip = await JSZip.loadAsync(zipFile);
+
+    // 1. modelo
+    const modelJson   = await zip.file('model.json')!.async('string');
+    const weightArray = await zip.file('model.weights.bin')!.async('arraybuffer');
+    const model = await tf.loadLayersModel(
+      tf.io.browserFiles([
+        new File([modelJson], 'model.json', { type: 'application/json' }),
+        new File([weightArray], 'model.weights.bin'),
+      ])
+    );
+
+    // 2. muestras
+    const meta: { id: string; label: string; type: string }[] = JSON.parse(
+      await zip.file('meta.json')!.async('string')
+    );
+    const newSamples: Sample[] = await Promise.all(
+      meta.map(async m => {
+        const buf  = await zip.file(`samples/${m.id}`)!.async('arraybuffer');
+        return { id: m.id, label: m.label, blob: new Blob([buf], { type: m.type }) };
+      })
+    );
+
+    // 3. actualizar estado global
+    setSamples(newSamples);
+    onLoaded(model);
     e.target.value = '';
   }
 
   return (
     <div style={{ marginTop: 8 }}>
-      <button onClick={save}   disabled={!model}>💾 Guardar modelo</button>{' '}
-      <button onClick={openPicker}>📂 Cargar modelo</button>
-      <input
-        hidden
-        multiple
-        ref={fileInput}
-        type="file"
-        accept=".json,.bin"
-        onChange={load}
-      />
+      <button onClick={saveAll} disabled={!model}>
+        💾 Guardar ZIP
+      </button>{' '}
+      <button onClick={openPicker}>📂 Cargar ZIP</button>
+      <input hidden ref={fileInput} type="file" accept=".zip" onChange={loadAll} />
     </div>
   );
 }
