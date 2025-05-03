@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import { Sample } from '../App';
-\export default function Waveform({ samples }: { samples: Sample[] }) {
+export default function Waveform({ samples }: { samples: Sample[] }) {
+
   const div = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
 
